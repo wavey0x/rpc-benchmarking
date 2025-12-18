@@ -159,13 +159,13 @@ class BenchmarkService:
             sequential_tests = [tc for tc in test_cases if tc.category != TestCategory.LOAD]
             load_tests = [tc for tc in test_cases if tc.category == TestCategory.LOAD]
 
-            iterations = config.get_iteration_count()
+            rounds = config.get_round_count()
             total_tests = len(sequential_tests) * len(providers) + len(load_tests) * len(providers)
 
             # Calculate total work units for progress tracking
-            # Each sequential test iteration is 1 unit, each load test is worth 'iterations' units (roughly equivalent)
-            total_sequential_units = len(sequential_tests) * len(providers) * iterations
-            total_load_units = len(load_tests) * len(providers) * iterations  # Weight load tests same as sequential
+            # Each sequential test per round is 1 unit, each load test is worth 1 unit
+            total_sequential_units = len(sequential_tests) * len(providers) * rounds
+            total_load_units = len(load_tests) * len(providers)
             total_work_units = total_sequential_units + total_load_units
             completed_units = 0
 
@@ -177,44 +177,39 @@ class BenchmarkService:
                     "total_tests": total_tests,
                     "total_sequential": len(sequential_tests),
                     "total_load": len(load_tests),
-                    "iterations": iterations,
+                    "rounds": rounds,
                     "providers": len(providers),
                     "total_work_units": total_work_units,
                 },
             )
 
-            # Run sequential tests
-            for provider in providers:
+            # Run sequential tests in ROUNDS
+            # Round 1 = cold (cache miss expected)
+            # Round 2+ = warm (cache hit expected after propagation delay)
+            for round_num in range(rounds):
                 if self._running_jobs.get(job_id):
                     break  # Cancelled
 
+                iteration_type = IterationType.COLD if round_num == 0 else IterationType.WARM
+
                 yield SSEEvent(
-                    event="provider_started",
-                    data={"provider_id": provider.id, "provider_name": provider.name},
+                    event="round_started",
+                    data={
+                        "round": round_num + 1,
+                        "total_rounds": rounds,
+                        "iteration_type": iteration_type.value,
+                    },
                 )
 
-                for test in sequential_tests:
+                # Run each test once per round, cycling through all providers
+                for provider in providers:
                     if self._running_jobs.get(job_id):
                         break
 
-                    yield SSEEvent(
-                        event="test_started",
-                        data={
-                            "test_id": test.id,
-                            "test_name": test.name,
-                            "category": test.category.value,
-                            "label": test.label.value,
-                            "provider_id": provider.id,
-                            "provider_name": provider.name,
-                        },
-                    )
-
-                    # Run iterations
-                    for i in range(iterations):
+                    for test in sequential_tests:
                         if self._running_jobs.get(job_id):
                             break
 
-                        iteration_type = self._get_iteration_type(i)
                         # Use longer timeout for getLogs
                         timeout = GETLOGS_TIMEOUT_SECONDS if test.rpc_method == "eth_getLogs" else config.timeout_seconds
                         result = await self._execute_rpc_call(
@@ -232,7 +227,7 @@ class BenchmarkService:
                             "test_name": test.name,
                             "category": test.category.value,
                             "label": test.label.value,
-                            "iteration": i + 1,
+                            "iteration": round_num + 1,  # Round number as iteration
                             "iteration_type": iteration_type.value,
                             "response_time_ms": result.get("response_time_ms"),
                             "success": result["success"],
@@ -252,8 +247,10 @@ class BenchmarkService:
                             data={
                                 "test_id": test.id,
                                 "test_name": test.name,
-                                "iteration": i + 1,
-                                "total_iterations": iterations,
+                                "round": round_num + 1,
+                                "total_rounds": rounds,
+                                "iteration_type": iteration_type.value,
+                                "provider_name": provider.name,
                                 "response_time_ms": result.get("response_time_ms"),
                                 "success": result["success"],
                                 "progress": progress,
@@ -262,23 +259,27 @@ class BenchmarkService:
                             },
                         )
 
-                        # Inter-iteration delay
-                        if config.inter_iteration_delay_ms > 0 and i < iterations - 1:
-                            await asyncio.sleep(config.inter_iteration_delay_ms / 1000)
+                        # Small delay between individual requests
+                        if config.delay_ms > 0:
+                            await asyncio.sleep(config.delay_ms / 1000)
 
+                # Inter-round delay to allow cache propagation (except after last round)
+                if round_num < rounds - 1:
                     yield SSEEvent(
-                        event="test_complete",
-                        data={"test_id": test.id, "test_name": test.name},
+                        event="round_complete",
+                        data={
+                            "round": round_num + 1,
+                            "total_rounds": rounds,
+                            "waiting_ms": config.inter_round_delay_ms,
+                        },
                     )
+                    if config.inter_round_delay_ms > 0:
+                        await asyncio.sleep(config.inter_round_delay_ms / 1000)
 
-                    # Delay between tests
-                    if config.delay_ms > 0:
-                        await asyncio.sleep(config.delay_ms / 1000)
-
-                yield SSEEvent(
-                    event="provider_complete",
-                    data={"provider_id": provider.id, "provider_name": provider.name},
-                )
+            yield SSEEvent(
+                event="sequential_complete",
+                data={"total_rounds": rounds, "tests_per_round": len(sequential_tests) * len(providers)},
+            )
 
             # Run load tests (one provider at a time)
             for provider in providers:
@@ -322,8 +323,8 @@ class BenchmarkService:
                     }
                     await db.save_load_test_result(load_test_result)
 
-                    # Update progress (load tests are weighted same as all iterations of a sequential test)
-                    completed_units += iterations
+                    # Update progress
+                    completed_units += 1
                     progress = completed_units / total_work_units if total_work_units > 0 else 0
 
                     yield SSEEvent(
@@ -436,15 +437,6 @@ class BenchmarkService:
             "tests_executed": tests_executed,
             "aggregated": aggregated,
         }
-
-    def _get_iteration_type(self, iteration_index: int) -> IterationType:
-        """Get iteration type based on index."""
-        if iteration_index == 0:
-            return IterationType.COLD
-        elif iteration_index == 1:
-            return IterationType.WARM
-        else:
-            return IterationType.SUSTAINED
 
     async def _get_current_block(self, url: str, timeout: int) -> int:
         """Get current block number from provider."""

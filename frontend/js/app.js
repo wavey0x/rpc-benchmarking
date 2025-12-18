@@ -166,6 +166,16 @@ function setupNavigation() {
             navigateToPage(page);
         });
     });
+
+    // Logo click goes to new benchmark (step 1)
+    const navHome = document.getElementById('nav-home');
+    if (navHome) {
+        navHome.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigateToPage('benchmark');
+            setWizardStep(1);
+        });
+    }
 }
 
 function navigateToPage(page) {
@@ -241,14 +251,21 @@ async function validateCurrentStep() {
             return true;
 
         case 2:
-            const validProviders = state.providers.filter(p => p.name && p.url);
-            if (validProviders.length === 0) {
-                alert('Please add at least one provider with name and URL');
+            // Get providers that have URLs (may or may not have names yet)
+            const providersWithUrls = state.providers.filter(p => p.url && p.url.startsWith('http'));
+            if (providersWithUrls.length === 0) {
+                alert('Please add at least one provider with an RPC URL');
                 return false;
             }
             // All providers must be validated
             if (!state.providersValidated) {
-                alert('All providers must pass validation before continuing. Validation happens automatically when you enter URLs.');
+                alert('All providers must pass validation before continuing. Click "Validate Providers" to check URLs.');
+                return false;
+            }
+            // All providers with URLs must also have names before proceeding
+            const providersWithoutNames = providersWithUrls.filter(p => !p.name || !p.name.trim());
+            if (providersWithoutNames.length > 0) {
+                alert('Please enter a name for all providers before continuing');
                 return false;
             }
             return true;
@@ -476,9 +493,10 @@ async function validateProviders() {
         return;
     }
 
-    const validProviders = state.providers.filter(p => p.name && p.url);
-    if (validProviders.length === 0) {
-        alert('Please add at least one provider with name and URL');
+    // Validate providers that have URLs (name can be filled in later)
+    const providersWithUrls = state.providers.filter(p => p.url && p.url.startsWith('http'));
+    if (providersWithUrls.length === 0) {
+        alert('Please add at least one provider with an RPC URL');
         return;
     }
 
@@ -486,9 +504,9 @@ async function validateProviders() {
     elements.btnValidateProviders.disabled = true;
     elements.btnValidateProviders.textContent = 'Validating...';
 
-    // Mark all as validating
+    // Mark all with URLs as validating
     state.providers.forEach((p, i) => {
-        if (p.name && p.url) {
+        if (p.url && p.url.startsWith('http')) {
             const entry = elements.providersContainer.querySelector(`[data-index="${i}"]`);
             if (entry) {
                 const status = entry.querySelector('.provider-status');
@@ -787,8 +805,8 @@ function renderBenchmarkSummary() {
                 <span class="value">${state.selectedTests.size}</span>
             </div>
             <div class="summary-item">
-                <span class="label">Iteration Mode</span>
-                <span class="value">${state.iterationMode}</span>
+                <span class="label">Rounds</span>
+                <span class="value">${state.iterationMode} (${{'quick': 2, 'standard': 3, 'thorough': 5, 'statistical': 10}[state.iterationMode]} rounds)</span>
             </div>
             <div class="summary-item">
                 <span class="label">Categories</span>
@@ -857,34 +875,33 @@ function handleProgressEvent(event) {
     switch (event.event) {
         case 'job_started':
             state.totalTests = event.data.total_tests || 0;
-            state.totalIterations = event.data.iterations || 3;
-            log.textContent = `Starting benchmark: ${event.data.total_sequential || 0} sequential tests, ${event.data.total_load || 0} load tests, ${event.data.iterations} iterations`;
+            state.totalRounds = event.data.rounds || 3;
+            log.textContent = `Starting benchmark: ${event.data.total_sequential || 0} sequential tests × ${event.data.rounds} rounds, ${event.data.total_load || 0} load tests`;
             break;
 
-        case 'provider_started':
-            log.textContent = `Testing provider: ${event.data.provider_name}`;
+        case 'round_started':
+            log.textContent = `Round ${event.data.round}/${event.data.total_rounds} (${event.data.iteration_type})`;
             log.style.fontWeight = 'bold';
+            log.style.color = event.data.iteration_type === 'cold' ? '#f59e0b' : '#00ba7c';
             break;
 
-        case 'provider_complete':
-            log.textContent = `Completed provider: ${event.data.provider_name}`;
+        case 'round_complete':
+            if (event.data.waiting_ms > 0) {
+                log.textContent = `Round ${event.data.round} complete. Waiting ${event.data.waiting_ms}ms for cache propagation...`;
+                log.style.color = 'var(--color-text-muted)';
+            }
+            break;
+
+        case 'sequential_complete':
+            log.textContent = `Sequential tests complete: ${event.data.total_rounds} rounds`;
             log.style.color = '#00ba7c';
-            break;
-
-        case 'test_start':
-            elements.progressStatus.textContent = `Running: ${event.data.test_name}`;
-            log.textContent = `Starting: ${event.data.test_name} [${event.data.category}/${event.data.label}]`;
-            break;
-
-        case 'test_complete':
-            log.textContent = `Completed: ${event.data.test_name}`;
             break;
 
         case 'iteration_complete':
             const iterProgress = event.data.progress || 0;
             elements.progressBar.style.width = `${iterProgress * 100}%`;
-            elements.progressStatus.textContent = `${Math.round(iterProgress * 100)}% complete - ${event.data.test_name}`;
-            log.textContent = `  ${event.data.test_name}: ${event.data.iteration}/${event.data.total_iterations} - ${formatMs(event.data.response_time_ms)} ${event.data.success ? '✓' : '✗'}`;
+            elements.progressStatus.textContent = `${Math.round(iterProgress * 100)}% - Round ${event.data.round}/${event.data.total_rounds} (${event.data.iteration_type})`;
+            log.textContent = `  ${event.data.provider_name}: ${event.data.test_name} - ${formatMs(event.data.response_time_ms)} ${event.data.success ? '✓' : '✗'}`;
             break;
 
         case 'load_test_start':
@@ -1243,7 +1260,7 @@ function renderSequentialTab(results) {
                 <tr>
                     <th>Provider</th>
                     <th>Test</th>
-                    <th>Iteration</th>
+                    <th>Round</th>
                     <th class="numeric">Latency (ms)</th>
                     <th>Success</th>
                     <th>Error</th>

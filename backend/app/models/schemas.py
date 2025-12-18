@@ -206,11 +206,18 @@ class TestCase(BaseModel):
 
 
 class BenchmarkConfig(BaseModel):
-    """Configuration for a benchmark run."""
+    """Configuration for a benchmark run.
+
+    Tests are run in ROUNDS to allow proper cache warming:
+    - Round 1: All tests run once (cold - cache miss expected)
+    - Round 2+: All tests run again (warm - cache hit expected)
+
+    This gives distributed caches time to propagate between rounds.
+    """
     iteration_mode: IterationMode = IterationMode.STANDARD
     timeout_seconds: int = 30
-    delay_ms: int = 100
-    inter_iteration_delay_ms: int = 0
+    delay_ms: int = 100  # Delay between individual requests
+    inter_round_delay_ms: int = 2000  # Delay between rounds (allows cache propagation)
     categories: list[TestCategory] = Field(
         default_factory=lambda: [TestCategory.SIMPLE, TestCategory.MEDIUM, TestCategory.COMPLEX, TestCategory.LOAD]
     )
@@ -225,13 +232,13 @@ class BenchmarkConfig(BaseModel):
     load_concurrency_medium: int = 50
     load_concurrency_complex: int = 25
 
-    def get_iteration_count(self) -> int:
-        """Get the number of iterations based on mode."""
+    def get_round_count(self) -> int:
+        """Get the number of rounds based on mode."""
         return {
-            IterationMode.QUICK: 2,
-            IterationMode.STANDARD: 3,
-            IterationMode.THOROUGH: 10,
-            IterationMode.STATISTICAL: 25,
+            IterationMode.QUICK: 2,      # 1 cold + 1 warm
+            IterationMode.STANDARD: 3,   # 1 cold + 2 warm
+            IterationMode.THOROUGH: 5,   # 1 cold + 4 warm
+            IterationMode.STATISTICAL: 10,  # 1 cold + 9 warm
         }[self.iteration_mode]
 
 

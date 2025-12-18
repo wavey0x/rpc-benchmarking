@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RPC Benchmarker</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
     <link rel="stylesheet" href="/static/css/styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -11,9 +12,9 @@
     <div id="app">
         <!-- Navigation -->
         <nav class="navbar">
-            <div class="nav-brand">
-                <h1>RPC Benchmarker</h1>
-            </div>
+            <a href="#" class="nav-brand" id="nav-home">
+                <h1>🤖 RPC Benchmarker</h1>
+            </a>
             <ul class="nav-links">
                 <li><a href="#" data-page="benchmark" class="nav-link active">New Benchmark</a></li>
                 <li><a href="#" data-page="history" class="nav-link">History</a></li>
@@ -63,12 +64,20 @@
                     <div class="wizard-content hidden" data-step="2">
                         <h2>Configure Providers</h2>
                         <p class="step-description">Add RPC providers to compare. URLs are validated automatically - all must pass before you can continue.</p>
+                        <div class="provider-headers">
+                            <span class="header-status"></span>
+                            <span class="header-name">Name</span>
+                            <span class="header-url">RPC URL</span>
+                            <span class="header-region">Region</span>
+                            <span class="header-actions"></span>
+                        </div>
                         <div id="providers-container">
                             <div class="provider-entry" data-index="0">
+                                <div class="provider-status"></div>
                                 <div class="provider-fields">
-                                    <input type="text" class="provider-name" placeholder="Provider Name (e.g., Alchemy)" required>
-                                    <input type="url" class="provider-url" placeholder="RPC URL (https://...)" required>
-                                    <input type="text" class="provider-region" placeholder="Region (optional)">
+                                    <input type="text" class="provider-name" placeholder="e.g., Alchemy">
+                                    <input type="url" class="provider-url" placeholder="https://...">
+                                    <input type="text" class="provider-region" placeholder="(optional)">
                                 </div>
                                 <button type="button" class="btn-icon btn-remove-provider" title="Remove">&times;</button>
                             </div>
@@ -83,30 +92,30 @@
                     <!-- Step 3: Test Selection -->
                     <div class="wizard-content hidden" data-step="3">
                         <h2>Select Tests</h2>
-                        <p class="step-description">Choose which tests to run and configure iteration mode.</p>
+                        <p class="step-description">Choose which tests to run and configure rounds. Each round runs all tests once; Round 1 is cold (cache miss), Round 2+ is warm (cache hit).</p>
 
                         <div class="test-config-section">
-                            <h3>Iteration Mode</h3>
+                            <h3>Rounds</h3>
                             <div class="iteration-modes">
                                 <label class="radio-card">
                                     <input type="radio" name="iteration-mode" value="quick" checked>
                                     <span class="radio-label">Quick</span>
-                                    <span class="radio-desc">2 iterations - Fast results</span>
+                                    <span class="radio-desc">2 rounds (1 cold + 1 warm)</span>
                                 </label>
                                 <label class="radio-card">
                                     <input type="radio" name="iteration-mode" value="standard">
                                     <span class="radio-label">Standard</span>
-                                    <span class="radio-desc">3 iterations - Balanced</span>
+                                    <span class="radio-desc">3 rounds (1 cold + 2 warm)</span>
                                 </label>
                                 <label class="radio-card">
                                     <input type="radio" name="iteration-mode" value="thorough">
                                     <span class="radio-label">Thorough</span>
-                                    <span class="radio-desc">10 iterations - Detailed</span>
+                                    <span class="radio-desc">5 rounds (1 cold + 4 warm)</span>
                                 </label>
                                 <label class="radio-card">
                                     <input type="radio" name="iteration-mode" value="statistical">
                                     <span class="radio-label">Statistical</span>
-                                    <span class="radio-desc">25 iterations - High precision</span>
+                                    <span class="radio-desc">10 rounds (1 cold + 9 warm)</span>
                                 </label>
                             </div>
                         </div>

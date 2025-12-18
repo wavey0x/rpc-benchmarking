@@ -138,6 +138,19 @@ class ApiClient {
             onEvent({ event: 'iteration_complete', data: JSON.parse(event.data) });
         });
 
+        // Round events (for round-based testing)
+        eventSource.addEventListener('round_started', (event) => {
+            onEvent({ event: 'round_started', data: JSON.parse(event.data) });
+        });
+
+        eventSource.addEventListener('round_complete', (event) => {
+            onEvent({ event: 'round_complete', data: JSON.parse(event.data) });
+        });
+
+        eventSource.addEventListener('sequential_complete', (event) => {
+            onEvent({ event: 'sequential_complete', data: JSON.parse(event.data) });
+        });
+
         // Load test events (backend uses "load_test_started" not "load_test_start")
         eventSource.addEventListener('load_test_started', (event) => {
             onEvent({ event: 'load_test_start', data: JSON.parse(event.data) });
