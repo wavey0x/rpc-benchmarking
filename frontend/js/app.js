@@ -1112,6 +1112,10 @@ function renderResultsTab(tab) {
     }
 }
 
+// Track hidden tests for chart filtering (persists across tab switches)
+let hiddenChartTests = new Set();
+let overviewChartInstance = null;
+
 function renderOverviewTab(results) {
     const aggregated = results.aggregated || [];
 
@@ -1135,6 +1139,9 @@ function renderOverviewTab(results) {
             paramErrors: providerResults.reduce((sum, r) => sum + (r.param_errors || 0), 0),
         };
     });
+
+    const providers = Object.keys(byProvider);
+    const allTests = [...new Set(aggregated.map(r => r.test_name))];
 
     elements.resultsContent.innerHTML = `
         <div class="error-summary">
@@ -1167,8 +1174,21 @@ function renderOverviewTab(results) {
                 }).join('')}
             </div>
         </div>
-        <div class="chart-container">
-            <canvas id="overview-chart"></canvas>
+        <div class="chart-section">
+            <div class="chart-test-filters">
+                <span class="filter-label">Tests (click to toggle):</span>
+                <div class="test-filter-pills">
+                    ${allTests.map(test => `
+                        <button type="button" class="test-filter-pill ${hiddenChartTests.has(test) ? 'hidden-test' : ''}" data-test="${test}">
+                            ${test}
+                        </button>
+                    `).join('')}
+                </div>
+                <button type="button" class="btn btn-small" id="btn-reset-test-filters">Show All</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="overview-chart"></canvas>
+            </div>
         </div>
         <table class="results-table">
             <thead>
@@ -1178,16 +1198,17 @@ function renderOverviewTab(results) {
                     <th>Category</th>
                     <th class="numeric">Cold (ms)</th>
                     <th class="numeric">Warm (ms)</th>
-                    <th class="numeric">Cache Speedup</th>
-                    <th class="numeric">Success Rate</th>
-                    <th class="numeric">Errors</th>
+                    <th class="numeric">Speedup</th>
+                    <th class="numeric">Logs</th>
+                    <th class="numeric">Success</th>
+                    <th>Errors</th>
                 </tr>
             </thead>
             <tbody>
                 ${aggregated.map(r => {
-                    const errorTypes = r.error_breakdown ? Object.entries(r.error_breakdown).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
-                    const errorMsgs = r.error_messages && r.error_messages.length > 0 ? r.error_messages.join('\n') : '';
-                    const fullErrorInfo = errorTypes + (errorMsgs ? '\n\nMessages:\n' + errorMsgs : '');
+                    const errorTypes = r.error_breakdown ? Object.entries(r.error_breakdown).map(([k, v]) => `${k}(${v})`).join(' ') : '';
+                    const errorMsgs = r.error_messages && r.error_messages.length > 0 ? r.error_messages : [];
+                    const hasErrors = r.error_count > 0;
                     return `
                         <tr>
                             <td>${r.provider_name}</td>
@@ -1196,8 +1217,21 @@ function renderOverviewTab(results) {
                             <td class="numeric">${formatMs(r.cold_ms)}</td>
                             <td class="numeric">${formatMs(r.warm_ms)}</td>
                             <td class="numeric">${r.cache_speedup ? r.cache_speedup.toFixed(2) + 'x' : '-'}</td>
+                            <td class="numeric">${r.log_count !== null && r.log_count !== undefined ? r.log_count.toLocaleString() : '-'}</td>
                             <td class="numeric">${formatPercent(r.success_rate)}</td>
-                            <td class="numeric ${r.error_count > 0 ? 'has-error' : ''}" title="${fullErrorInfo}">${r.error_count || 0}${r.error_messages && r.error_messages.length > 0 ? ' ⓘ' : ''}</td>
+                            <td class="error-cell ${hasErrors ? 'has-error' : ''}">
+                                ${hasErrors ? `
+                                    <div class="error-summary-inline">
+                                        <span class="error-types">${errorTypes}</span>
+                                        ${errorMsgs.length > 0 ? `
+                                            <details class="error-details">
+                                                <summary>details</summary>
+                                                <ul>${errorMsgs.map(m => `<li>${m}</li>`).join('')}</ul>
+                                            </details>
+                                        ` : ''}
+                                    </div>
+                                ` : '-'}
+                            </td>
                         </tr>
                     `;
                 }).join('')}
@@ -1205,50 +1239,87 @@ function renderOverviewTab(results) {
         </table>
     `;
 
-    // Create chart
-    const ctx = document.getElementById('overview-chart').getContext('2d');
-    const providers = Object.keys(byProvider);
-    const tests = [...new Set(aggregated.map(r => r.test_name))];
+    // Function to get visible tests
+    const getVisibleTests = () => allTests.filter(t => !hiddenChartTests.has(t));
 
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: tests,
-            datasets: providers.map((provider, i) => ({
-                label: provider,
-                data: tests.map(test => {
-                    const result = byProvider[provider].find(r => r.test_name === test);
-                    return result?.warm_ms || null;
-                }),
-                backgroundColor: `hsla(${i * 360 / providers.length}, 70%, 50%, 0.7)`,
-            })),
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: { color: '#e7e9ea' },
+    // Function to create/update chart
+    const updateChart = () => {
+        const visibleTests = getVisibleTests();
+        const ctx = document.getElementById('overview-chart').getContext('2d');
+
+        // Destroy existing chart if it exists
+        if (overviewChartInstance) {
+            overviewChartInstance.destroy();
+        }
+
+        overviewChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: visibleTests,
+                datasets: providers.map((provider, i) => ({
+                    label: provider,
+                    data: visibleTests.map(test => {
+                        const result = byProvider[provider].find(r => r.test_name === test);
+                        return result?.warm_ms || null;
+                    }),
+                    backgroundColor: `hsla(${i * 360 / providers.length}, 70%, 50%, 0.7)`,
+                })),
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#e7e9ea' },
+                    },
+                    title: {
+                        display: true,
+                        text: `Warm Latency by Test (ms)${hiddenChartTests.size > 0 ? ` - ${hiddenChartTests.size} test(s) hidden` : ''}`,
+                        color: '#e7e9ea',
+                    },
                 },
-                title: {
-                    display: true,
-                    text: 'Warm Latency by Test (ms)',
-                    color: '#e7e9ea',
+                scales: {
+                    x: {
+                        ticks: { color: '#8b98a5' },
+                        grid: { color: '#2f3336' },
+                    },
+                    y: {
+                        ticks: { color: '#8b98a5' },
+                        grid: { color: '#2f3336' },
+                    },
                 },
             },
-            scales: {
-                x: {
-                    ticks: { color: '#8b98a5' },
-                    grid: { color: '#2f3336' },
-                },
-                y: {
-                    ticks: { color: '#8b98a5' },
-                    grid: { color: '#2f3336' },
-                },
-            },
-        },
+        });
+    };
+
+    // Set up test filter pill click handlers
+    document.querySelectorAll('.test-filter-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+            const testName = pill.dataset.test;
+            if (hiddenChartTests.has(testName)) {
+                hiddenChartTests.delete(testName);
+                pill.classList.remove('hidden-test');
+            } else {
+                // Don't allow hiding all tests
+                if (getVisibleTests().length > 1) {
+                    hiddenChartTests.add(testName);
+                    pill.classList.add('hidden-test');
+                }
+            }
+            updateChart();
+        });
     });
+
+    // Reset button
+    document.getElementById('btn-reset-test-filters').addEventListener('click', () => {
+        hiddenChartTests.clear();
+        document.querySelectorAll('.test-filter-pill').forEach(p => p.classList.remove('hidden-test'));
+        updateChart();
+    });
+
+    // Initial chart render
+    updateChart();
 }
 
 function renderSequentialTab(results) {

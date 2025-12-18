@@ -753,6 +753,13 @@ class BenchmarkService:
 
             cache_speedup = cold_ms / warm_ms if warm_ms > 0 else 1.0
 
+            # Get log_count from first successful result that has it (for getLogs tests)
+            log_count = None
+            for r in successful:
+                if r.get("log_count") is not None:
+                    log_count = r["log_count"]
+                    break
+
             agg = {
                 "provider_id": provider_id,
                 "test_id": test_id,
@@ -766,6 +773,7 @@ class BenchmarkService:
                 "cold_ms": cold_ms,
                 "warm_ms": warm_ms,
                 "cache_speedup": cache_speedup,
+                "log_count": log_count,  # For getLogs tests
                 # Error analysis
                 "provider_errors": provider_errors,
                 "param_errors": param_errors,

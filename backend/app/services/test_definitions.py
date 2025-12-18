@@ -72,9 +72,10 @@ def get_test_definitions() -> list[dict[str, Any]]:
             "param_template": ["{archival_block_hex}", True],
         },
         # Complex Tests (8-11) - getLogs with token contract (user requested to keep)
+        # Names use {range_small} and {range_large} placeholders for actual block counts
         {
             "id": 8,
-            "name": "eth_getLogs 1k blocks (latest)",
+            "name": "eth_getLogs small range (latest)",
             "category": "complex",
             "label": "latest",
             "rpc_method": "eth_getLogs",
@@ -90,7 +91,7 @@ def get_test_definitions() -> list[dict[str, Any]]:
         },
         {
             "id": 9,
-            "name": "eth_getLogs 1k blocks (archival)",
+            "name": "eth_getLogs small range (archival)",
             "category": "complex",
             "label": "archival",
             "rpc_method": "eth_getLogs",
@@ -106,7 +107,7 @@ def get_test_definitions() -> list[dict[str, Any]]:
         },
         {
             "id": 10,
-            "name": "eth_getLogs 10k blocks (latest)",
+            "name": "eth_getLogs large range (latest)",
             "category": "complex",
             "label": "latest",
             "rpc_method": "eth_getLogs",
@@ -122,7 +123,7 @@ def get_test_definitions() -> list[dict[str, Any]]:
         },
         {
             "id": 11,
-            "name": "eth_getLogs 10k blocks (archival)",
+            "name": "eth_getLogs large range (archival)",
             "category": "complex",
             "label": "archival",
             "rpc_method": "eth_getLogs",
@@ -224,6 +225,14 @@ def build_test_cases(
         # Substitute parameters
         rpc_params = _substitute_params(defn["param_template"], subs)
 
+        # Build test name - include actual block range for getLogs tests
+        test_name = defn["name"]
+        range_size = defn.get("range_size")
+        if range_size == "small":
+            test_name = test_name.replace("small range", f"{params.logs_range_small} blocks")
+        elif range_size == "large":
+            test_name = test_name.replace("large range", f"{params.logs_range_large} blocks")
+
         # Determine concurrency for load tests
         concurrency = None
         if defn["category"] == "load":
@@ -232,7 +241,7 @@ def build_test_cases(
 
         test_case = TestCase(
             id=test_id,
-            name=defn["name"],
+            name=test_name,
             category=TestCategory(defn["category"]),
             label=TestLabel(defn["label"]),
             enabled=True,
