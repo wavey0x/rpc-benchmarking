@@ -215,6 +215,14 @@ def build_test_cases(
 
     load_conc = load_concurrency or {"simple": 50, "medium": 50, "complex": 25}
 
+    # Block range info for debugging (will be added to test metadata)
+    block_ranges = {
+        8: (logs_recent_start_small, logs_recent_end),  # small latest
+        9: (logs_archival_start, logs_archival_end_small),  # small archival
+        10: (logs_recent_start_large, logs_recent_end),  # large latest
+        11: (logs_archival_start, logs_archival_end_large),  # large archival
+    }
+
     for defn in definitions:
         test_id = defn["id"]
 
@@ -228,10 +236,16 @@ def build_test_cases(
         # Build test name - include actual block range for getLogs tests
         test_name = defn["name"]
         range_size = defn.get("range_size")
-        if range_size == "small":
-            test_name = test_name.replace("small range", f"{params.logs_range_small} blocks")
-        elif range_size == "large":
-            test_name = test_name.replace("large range", f"{params.logs_range_large} blocks")
+
+        # For getLogs tests, show actual block range in name for debugging
+        if test_id in block_ranges:
+            from_block, to_block = block_ranges[test_id]
+            block_count = to_block - from_block
+            # Format: "eth_getLogs [12000000→12050000] (archival)"
+            if "small range" in test_name:
+                test_name = test_name.replace("small range", f"[{from_block:,}→{to_block:,}]")
+            elif "large range" in test_name:
+                test_name = test_name.replace("large range", f"[{from_block:,}→{to_block:,}]")
 
         # Determine concurrency for load tests
         concurrency = None

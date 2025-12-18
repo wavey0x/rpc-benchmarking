@@ -411,6 +411,7 @@ class BenchmarkService:
         load_results = await db.get_load_test_results(job_id)
         tests_executed = await db.get_job_tests_executed(job_id)
         providers = await db.get_job_providers(job_id)
+        test_params = await db.get_job_test_params(job_id)
 
         # Create provider name lookup
         provider_names = {p["id"]: p["name"] for p in providers}
@@ -441,6 +442,7 @@ class BenchmarkService:
             "tests_executed": tests_executed,
             "aggregated": aggregated,
             "log_count_comparisons": log_count_comparisons,
+            "test_params": test_params,
         }
 
     async def _get_current_block(self, url: str, timeout: int) -> int:

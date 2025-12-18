@@ -122,6 +122,7 @@ const elements = {
     // Results
     resultsTabs: document.querySelectorAll('.tab-btn'),
     resultsContent: document.getElementById('results-content'),
+    btnRerun: document.getElementById('btn-rerun'),
     btnExportJson: document.getElementById('btn-export-json'),
     btnExportCsv: document.getElementById('btn-export-csv'),
     btnBackToHistory: document.getElementById('btn-back-to-history'),
@@ -1076,6 +1077,126 @@ function setupResults() {
     elements.btnBackToHistory.addEventListener('click', () => {
         navigateToPage('history');
     });
+
+    elements.btnRerun.addEventListener('click', () => {
+        if (state.currentJobId) {
+            rerunBenchmark(state.currentJobId);
+        }
+    });
+}
+
+async function rerunBenchmark(jobId) {
+    try {
+        // Get the full job info including config and providers
+        const job = await api.getJob(jobId);
+        if (!job) {
+            alert('Failed to load job configuration');
+            return;
+        }
+
+        // Get config (API returns it as parsed object in job.config)
+        const config = job.config || {};
+
+        // Find the matching chain
+        const chain = state.chains.find(c => c.chain_id === job.chain_id);
+        if (!chain) {
+            alert(`Chain ${job.chain_name} (ID: ${job.chain_id}) not found. Make sure the chain is configured.`);
+            return;
+        }
+        state.selectedChain = chain;
+
+        // Check if this is an imported job (URLs are not real)
+        const hasImportedUrls = job.providers.some(p => p.url && p.url.startsWith('imported://'));
+        if (hasImportedUrls) {
+            alert('Cannot re-run imported jobs. The original RPC URLs are not stored in exports for security reasons.\n\nYou can manually enter the provider URLs in a new benchmark.');
+            return;
+        }
+
+        // Populate providers
+        state.providers = job.providers.map(p => ({
+            name: p.name,
+            url: p.url,
+            region: p.region || '',
+            validated: true // Assume valid since they ran before
+        }));
+        state.providersValidated = true;
+
+        // Set iteration mode
+        state.iterationMode = config.iteration_mode || 'quick';
+        document.querySelector(`input[name="iteration-mode"][value="${state.iterationMode}"]`).checked = true;
+
+        // Set categories
+        state.selectedCategories = new Set(config.categories || ['simple', 'medium', 'complex', 'load']);
+        document.querySelectorAll('input[name="category"]').forEach(cb => {
+            cb.checked = state.selectedCategories.has(cb.value);
+        });
+
+        // Set labels
+        state.selectedLabels = new Set(config.labels || ['latest', 'archival']);
+        document.querySelectorAll('input[name="label"]').forEach(cb => {
+            cb.checked = state.selectedLabels.has(cb.value);
+        });
+
+        // Set enabled tests
+        if (config.enabled_test_ids && config.enabled_test_ids.length > 0) {
+            state.selectedTests = new Set(config.enabled_test_ids);
+        } else {
+            // Select all that match categories/labels
+            state.selectedTests = new Set();
+            state.testCases.forEach(test => {
+                if (state.selectedCategories.has(test.category) && state.selectedLabels.has(test.label)) {
+                    state.selectedTests.add(test.id);
+                }
+            });
+        }
+
+        // Set test parameters
+        const testParams = job.test_params || {};
+        if (testParams.known_address) {
+            document.getElementById('param-known-address').value = testParams.known_address;
+        }
+        if (testParams.archival_block) {
+            document.getElementById('param-archival-block').value = testParams.archival_block;
+        }
+        if (testParams.recent_block_offset) {
+            document.getElementById('param-recent-block-offset').value = testParams.recent_block_offset;
+        }
+        if (testParams.logs_token_contract) {
+            document.getElementById('param-logs-token-contract').value = testParams.logs_token_contract;
+        }
+        if (testParams.logs_range_small) {
+            document.getElementById('param-logs-range-small').value = testParams.logs_range_small;
+        }
+        if (testParams.logs_range_large) {
+            document.getElementById('param-logs-range-large').value = testParams.logs_range_large;
+        }
+        if (testParams.archival_logs_start_block) {
+            // Note: This param might not have a corresponding input field
+        }
+        if (config.timeout_seconds) {
+            document.getElementById('param-timeout').value = config.timeout_seconds;
+        }
+
+        // Navigate to benchmark wizard and go to step 5
+        navigateToPage('benchmark');
+
+        // Render providers and tests with the loaded data
+        renderProviders();
+        renderTestList();
+
+        // Mark chain as selected in UI
+        const chainCards = document.querySelectorAll('.chain-card');
+        chainCards.forEach(card => {
+            card.classList.toggle('selected', parseInt(card.dataset.chainId) === chain.chain_id);
+        });
+
+        // Go to step 5 (Run)
+        setWizardStep(5);
+
+    } catch (e) {
+        console.error('Failed to setup rerun:', e);
+        alert('Failed to load previous benchmark configuration: ' + e.message);
+    }
 }
 
 async function viewJobResults(jobId) {
@@ -1143,36 +1264,34 @@ function renderOverviewTab(results) {
     const providers = Object.keys(byProvider);
     const allTests = [...new Set(aggregated.map(r => r.test_name))];
 
+    // Compact error summary row
+    const totalErrors = Object.values(errorSummary).reduce((sum, s) => sum + s.totalErrors, 0);
+    const providersWithErrors = Object.keys(errorSummary).filter(p => errorSummary[p].totalErrors > 0);
+
     elements.resultsContent.innerHTML = `
-        <div class="error-summary">
-            <h3>Error Analysis</h3>
-            <div class="error-summary-grid">
-                ${Object.keys(errorSummary).map(provider => {
-                    const summary = errorSummary[provider];
-                    const hasErrors = summary.totalErrors > 0;
-                    return `
-                        <div class="error-summary-card ${hasErrors ? 'has-errors' : 'no-errors'}">
-                            <h4>${provider}</h4>
-                            ${hasErrors ? `
-                                <div class="error-breakdown">
-                                    <div class="error-stat">
-                                        <span class="error-label">Provider Errors:</span>
-                                        <span class="error-value provider-error">${summary.providerErrors}</span>
-                                    </div>
-                                    <div class="error-stat">
-                                        <span class="error-label">Param Errors:</span>
-                                        <span class="error-value param-error">${summary.paramErrors}</span>
-                                    </div>
-                                    <div class="error-hint">
-                                        ${summary.providerErrors > 0 ? 'Provider errors: timeouts, rate limits, connection issues' : ''}
-                                        ${summary.paramErrors > 0 ? 'Param errors: check your test parameters' : ''}
-                                    </div>
+        <div class="error-summary-compact">
+            ${totalErrors === 0 ? `
+                <span class="status-badge success">All providers: No errors</span>
+            ` : `
+                <details class="error-details-expandable">
+                    <summary>
+                        <span class="status-badge error">${totalErrors} error(s)</span>
+                        <span class="error-providers">${providersWithErrors.join(', ')}</span>
+                    </summary>
+                    <div class="error-details-content">
+                        ${providersWithErrors.map(provider => {
+                            const summary = errorSummary[provider];
+                            return `
+                                <div class="error-provider-row">
+                                    <strong>${provider}:</strong>
+                                    ${summary.providerErrors > 0 ? `<span class="error-tag provider">Provider: ${summary.providerErrors}</span>` : ''}
+                                    ${summary.paramErrors > 0 ? `<span class="error-tag param">Param: ${summary.paramErrors}</span>` : ''}
                                 </div>
-                            ` : '<span class="no-errors-badge">No errors</span>'}
-                        </div>
-                    `;
-                }).join('')}
-            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </details>
+            `}
         </div>
         <div class="chart-section">
             <div class="chart-test-filters">
@@ -1433,6 +1552,7 @@ function renderLoadTab(results) {
 function renderComparisonTab(results) {
     const aggregated = results.aggregated || [];
     const logCountComparisons = results.log_count_comparisons || [];
+    const testParams = results.test_params || {};
     const providers = [...new Set(aggregated.map(r => r.provider_name))];
     const tests = [...new Set(aggregated.map(r => r.test_name))];
 
@@ -1460,6 +1580,12 @@ function renderComparisonTab(results) {
             <div class="data-consistency-section">
                 <h3>Data Consistency (getLogs)</h3>
                 <p class="section-description">Compares log counts across providers - different counts may indicate data sync issues or missing data.</p>
+                ${testParams.logs_token_contract ? `
+                    <div class="query-params-info">
+                        <strong>Token Contract:</strong> <code>${testParams.logs_token_contract}</code>
+                        | <strong>Archival Start Block:</strong> ${testParams.archival_logs_start_block?.toLocaleString() || testParams.archival_block?.toLocaleString() || 'N/A'}
+                    </div>
+                ` : ''}
                 ${hasMismatches ? `
                     <div class="mismatch-warning">
                         <span class="warning-icon">⚠️</span>
