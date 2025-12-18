@@ -1262,6 +1262,7 @@ function renderSequentialTab(results) {
                     <th>Test</th>
                     <th>Round</th>
                     <th class="numeric">Latency (ms)</th>
+                    <th class="numeric">Logs</th>
                     <th>Success</th>
                     <th>Error</th>
                 </tr>
@@ -1272,7 +1273,8 @@ function renderSequentialTab(results) {
                         <td>${r.provider_name || '-'}</td>
                         <td>${r.test_name || '-'}</td>
                         <td>${r.iteration_type || '-'}</td>
-                        <td class="numeric">${formatMs(r.latency_ms)}</td>
+                        <td class="numeric">${formatMs(r.response_time_ms)}</td>
+                        <td class="numeric">${r.log_count !== null && r.log_count !== undefined ? r.log_count.toLocaleString() : '-'}</td>
                         <td>${r.success ? '✓' : '✗'}</td>
                         <td>${r.error_message || '-'}</td>
                     </tr>
@@ -1359,6 +1361,7 @@ function renderLoadTab(results) {
 
 function renderComparisonTab(results) {
     const aggregated = results.aggregated || [];
+    const logCountComparisons = results.log_count_comparisons || [];
     const providers = [...new Set(aggregated.map(r => r.provider_name))];
     const tests = [...new Set(aggregated.map(r => r.test_name))];
 
@@ -1372,7 +1375,62 @@ function renderComparisonTab(results) {
         });
     });
 
+    // Check for any mismatches in log counts
+    const mismatches = logCountComparisons.filter(c => c.has_mismatch);
+    const hasMismatches = mismatches.length > 0;
+
+    // Get unique provider names from log comparisons
+    const logProviders = logCountComparisons.length > 0
+        ? Object.keys(logCountComparisons[0].provider_counts || {})
+        : providers;
+
     elements.resultsContent.innerHTML = `
+        ${logCountComparisons.length > 0 ? `
+            <div class="data-consistency-section">
+                <h3>Data Consistency (getLogs)</h3>
+                <p class="section-description">Compares log counts across providers - different counts may indicate data sync issues or missing data.</p>
+                ${hasMismatches ? `
+                    <div class="mismatch-warning">
+                        <span class="warning-icon">⚠️</span>
+                        <span>${mismatches.length} test(s) returned different log counts across providers</span>
+                    </div>
+                ` : `
+                    <div class="consistency-ok">
+                        <span class="ok-icon">✓</span>
+                        <span>All providers returned consistent log counts</span>
+                    </div>
+                `}
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th>Test</th>
+                            <th>Round</th>
+                            ${logProviders.map(p => `<th class="numeric">${p}</th>`).join('')}
+                            <th class="numeric">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${logCountComparisons.map(c => {
+                            const counts = c.provider_counts || {};
+                            return `
+                                <tr class="${c.has_mismatch ? 'mismatch-row' : ''}">
+                                    <td>${c.test_name}</td>
+                                    <td>${c.round_number}</td>
+                                    ${logProviders.map(p => {
+                                        const count = counts[p];
+                                        const isMismatch = c.has_mismatch && count !== null && count !== c.consensus_count;
+                                        return `<td class="numeric ${isMismatch ? 'mismatch-value' : ''}">${count !== null && count !== undefined ? count.toLocaleString() : '-'}</td>`;
+                                    }).join('')}
+                                    <td class="numeric">${c.has_mismatch ? '<span class="status-mismatch">MISMATCH</span>' : '<span class="status-ok">OK</span>'}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        ` : ''}
+
+        <h3>Latency Comparison</h3>
         <table class="results-table">
             <thead>
                 <tr>

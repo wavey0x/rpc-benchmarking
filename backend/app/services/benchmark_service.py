@@ -235,6 +235,7 @@ class BenchmarkService:
                             "error_message": result.get("error_message"),
                             "http_status": result.get("http_status"),
                             "response_size_bytes": result.get("response_size_bytes"),
+                            "log_count": result.get("log_count"),  # For eth_getLogs tests
                         }
                         await db.save_test_result(test_result)
 
@@ -431,11 +432,15 @@ class BenchmarkService:
         for sr in test_results:
             sr["provider_name"] = provider_names.get(sr["provider_id"], "Unknown")
 
+        # Compute log count comparisons for eth_getLogs tests
+        log_count_comparisons = self._compute_log_count_comparisons(test_results, provider_names)
+
         return {
             "sequential": test_results,
             "load_tests": load_results,
             "tests_executed": tests_executed,
             "aggregated": aggregated,
+            "log_count_comparisons": log_count_comparisons,
         }
 
     async def _get_current_block(self, url: str, timeout: int) -> int:
@@ -526,11 +531,19 @@ class BenchmarkService:
                         "response_time_ms": elapsed,
                     }
 
+                # For eth_getLogs, extract the log count for data consistency tracking
+                log_count = None
+                if method == "eth_getLogs" and "result" in result:
+                    logs = result["result"]
+                    if isinstance(logs, list):
+                        log_count = len(logs)
+
                 return {
                     "success": True,
                     "response_time_ms": elapsed,
                     "http_status": response.status_code,
                     "response_size_bytes": len(response.content),
+                    "log_count": log_count,
                 }
 
             except httpx.TimeoutException:
@@ -777,6 +790,81 @@ class BenchmarkService:
             aggregated.append(agg)
 
         return aggregated
+
+    def _compute_log_count_comparisons(
+        self,
+        test_results: list[dict[str, Any]],
+        provider_names: dict[str, str],
+    ) -> list[dict[str, Any]]:
+        """Compute log count comparisons across providers for getLogs tests.
+
+        This helps identify data consistency issues where providers return
+        different numbers of logs for the same query.
+        """
+        from collections import Counter
+
+        # Filter to only getLogs tests with log_count data
+        getLogs_results = [
+            r for r in test_results
+            if r.get("log_count") is not None or (
+                "getLogs" in r.get("test_name", "") and r.get("success")
+            )
+        ]
+
+        if not getLogs_results:
+            return []
+
+        # Group by test_id and iteration (round)
+        groups: dict[tuple[int, int], list[dict]] = {}
+        for r in getLogs_results:
+            key = (r["test_id"], r["iteration"])
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(r)
+
+        comparisons = []
+        for (test_id, iteration), results in groups.items():
+            if len(results) < 2:
+                # Need at least 2 providers to compare
+                continue
+
+            first = results[0]
+
+            # Build provider counts dict (provider_name -> log_count)
+            provider_counts: dict[str, int | None] = {}
+            for r in results:
+                pname = provider_names.get(r["provider_id"], r["provider_id"])
+                provider_counts[pname] = r.get("log_count")
+
+            # Find consensus (most common non-None count)
+            valid_counts = [c for c in provider_counts.values() if c is not None]
+            if valid_counts:
+                count_frequency = Counter(valid_counts)
+                consensus_count = count_frequency.most_common(1)[0][0]
+            else:
+                consensus_count = None
+
+            # Check for mismatches
+            has_mismatch = False
+            if consensus_count is not None:
+                for count in valid_counts:
+                    if count != consensus_count:
+                        has_mismatch = True
+                        break
+
+            comparisons.append({
+                "test_id": test_id,
+                "test_name": first["test_name"],
+                "round_number": iteration,
+                "provider_counts": provider_counts,
+                "consensus_count": consensus_count,
+                "has_mismatch": has_mismatch,
+            })
+
+        # Sort by test_id, then round_number
+        comparisons.sort(key=lambda x: (x["test_id"], x["round_number"]))
+
+        return comparisons
 
 
 # Global service instance

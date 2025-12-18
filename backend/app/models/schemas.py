@@ -286,6 +286,7 @@ class TestResult(BaseModel):
     error_type: str | None = None
     http_status: int | None = None
     response_size_bytes: int | None = None
+    log_count: int | None = None  # For eth_getLogs tests: number of logs returned
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -356,6 +357,20 @@ class LoadDegradation(BaseModel):
     sequential_avg_ms: float
     load_avg_ms: float
     degradation_factor: float
+
+
+class LogCountComparison(BaseModel):
+    """Comparison of log counts across providers for a getLogs test.
+
+    Used to detect data consistency issues - all providers should return
+    the same number of logs for identical queries.
+    """
+    test_id: int
+    test_name: str
+    round_number: int
+    provider_counts: dict[str, int | None]  # provider_id -> log_count (None if error)
+    consensus_count: int | None  # Most common count, or None if no consensus
+    has_mismatch: bool  # True if providers returned different counts
 
 
 # ============================================================================

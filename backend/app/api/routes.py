@@ -698,6 +698,7 @@ async def import_results(file: UploadFile = File(...)) -> dict[str, Any]:
             "error_message": r.get("error_message"),
             "http_status": r.get("http_status"),
             "response_size_bytes": r.get("response_size_bytes"),
+            "log_count": r.get("log_count"),  # For getLogs tests
             "timestamp": r.get("timestamp", datetime.utcnow().isoformat()),
         }
         await db.save_test_result(test_result)

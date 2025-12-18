@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS test_results (
     error_message TEXT,
     http_status INTEGER,
     response_size_bytes INTEGER,
+    log_count INTEGER,
     timestamp TEXT NOT NULL
 );
 
@@ -114,6 +115,19 @@ class Database:
         self._connection.row_factory = aiosqlite.Row
         await self._connection.executescript(SCHEMA)
         await self._connection.commit()
+
+        # Run migrations for existing databases
+        await self._run_migrations()
+
+    async def _run_migrations(self) -> None:
+        """Run database migrations for schema updates."""
+        # Migration: Add log_count column to test_results if it doesn't exist
+        try:
+            await self.conn.execute("SELECT log_count FROM test_results LIMIT 1")
+        except Exception:
+            # Column doesn't exist, add it
+            await self.conn.execute("ALTER TABLE test_results ADD COLUMN log_count INTEGER")
+            await self.conn.commit()
 
     async def disconnect(self) -> None:
         """Disconnect from the database."""
@@ -287,8 +301,9 @@ class Database:
             INSERT INTO test_results (
                 job_id, provider_id, test_id, test_name, category, label,
                 iteration, iteration_type, response_time_ms, success,
-                error_type, error_message, http_status, response_size_bytes, timestamp
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                error_type, error_message, http_status, response_size_bytes,
+                log_count, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result["job_id"],
@@ -305,6 +320,7 @@ class Database:
                 result.get("error_message"),
                 result.get("http_status"),
                 result.get("response_size_bytes"),
+                result.get("log_count"),
                 result.get("timestamp", datetime.utcnow().isoformat()),
             ),
         )
