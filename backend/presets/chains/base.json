@@ -1,0 +1,30 @@
+{
+  "chain_id": 8453,
+  "chain_name": "Base",
+  "is_preset": true,
+  "archive_cutoff_block": 1000000,
+  "archival_block_range": [1000000, 10000000],
+  "test_addresses": [
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "label": "WETH Contract"
+    },
+    {
+      "address": "0x3154Cf16ccdb4C6d922629664174b904d80F2C35",
+      "label": "Base Bridge"
+    }
+  ],
+  "token_contracts": [
+    {
+      "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "symbol": "USDC",
+      "holder_address": "0x3154Cf16ccdb4C6d922629664174b904d80F2C35"
+    },
+    {
+      "address": "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
+      "symbol": "DAI",
+      "holder_address": "0x3154Cf16ccdb4C6d922629664174b904d80F2C35"
+    }
+  ],
+  "transaction_pool": []
+}

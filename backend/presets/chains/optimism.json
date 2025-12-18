@@ -1,0 +1,35 @@
+{
+  "chain_id": 10,
+  "chain_name": "Optimism",
+  "is_preset": true,
+  "archive_cutoff_block": 50000000,
+  "archival_block_range": [50000000, 100000000],
+  "test_addresses": [
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "label": "WETH Contract"
+    },
+    {
+      "address": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
+      "label": "L1 Standard Bridge"
+    }
+  ],
+  "token_contracts": [
+    {
+      "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "symbol": "USDC",
+      "holder_address": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+    },
+    {
+      "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+      "symbol": "USDT",
+      "holder_address": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
+    },
+    {
+      "address": "0x4200000000000000000000000000000000000042",
+      "symbol": "OP",
+      "holder_address": "0x2A82Ae142b2e62Cb7D10b55E323ACB1Cab663a26"
+    }
+  ],
+  "transaction_pool": []
+}

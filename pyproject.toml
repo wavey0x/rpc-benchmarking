@@ -1,0 +1,31 @@
+[project]
+name = "rpc-benchmarker"
+version = "1.0.0"
+description = "Ethereum RPC Provider Benchmarking Utility"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "httpx>=0.26.0",
+    "pydantic>=2.5.0",
+    "aiosqlite>=0.19.0",
+    "python-multipart>=0.0.6",
+    "sse-starlette>=1.8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+rpc-benchmarker = "backend.app.main:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["backend"]

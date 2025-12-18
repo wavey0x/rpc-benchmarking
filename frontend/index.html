@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPC Benchmarker</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <h1>RPC Benchmarker</h1>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#" data-page="benchmark" class="nav-link active">New Benchmark</a></li>
+                <li><a href="#" data-page="history" class="nav-link">History</a></li>
+                <li><a href="#" data-page="chains" class="nav-link">Chains</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="container">
+            <!-- Benchmark Wizard Page -->
+            <section id="page-benchmark" class="page active">
+                <div class="wizard">
+                    <!-- Step Indicator -->
+                    <div class="wizard-steps">
+                        <div class="step active" data-step="1">
+                            <span class="step-number">1</span>
+                            <span class="step-label">Chain</span>
+                        </div>
+                        <div class="step" data-step="2">
+                            <span class="step-number">2</span>
+                            <span class="step-label">Providers</span>
+                        </div>
+                        <div class="step" data-step="3">
+                            <span class="step-number">3</span>
+                            <span class="step-label">Tests</span>
+                        </div>
+                        <div class="step" data-step="4">
+                            <span class="step-number">4</span>
+                            <span class="step-label">Parameters</span>
+                        </div>
+                        <div class="step" data-step="5">
+                            <span class="step-number">5</span>
+                            <span class="step-label">Run</span>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Chain Selection -->
+                    <div class="wizard-content" data-step="1">
+                        <h2>Select Chain</h2>
+                        <p class="step-description">Choose the blockchain network to benchmark.</p>
+                        <div id="chain-list" class="chain-grid">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Provider Configuration -->
+                    <div class="wizard-content hidden" data-step="2">
+                        <h2>Configure Providers</h2>
+                        <p class="step-description">Add RPC providers to compare. URLs are validated automatically - all must pass before you can continue.</p>
+                        <div id="providers-container">
+                            <div class="provider-entry" data-index="0">
+                                <div class="provider-fields">
+                                    <input type="text" class="provider-name" placeholder="Provider Name (e.g., Alchemy)" required>
+                                    <input type="url" class="provider-url" placeholder="RPC URL (https://...)" required>
+                                    <input type="text" class="provider-region" placeholder="Region (optional)">
+                                </div>
+                                <button type="button" class="btn-icon btn-remove-provider" title="Remove">&times;</button>
+                            </div>
+                        </div>
+                        <div class="provider-actions">
+                            <button type="button" id="btn-add-provider" class="btn btn-secondary">+ Add Provider</button>
+                            <button type="button" id="btn-validate-providers" class="btn btn-primary">Validate Providers</button>
+                        </div>
+                        <!-- Validation feedback shown via inline icons -->
+                    </div>
+
+                    <!-- Step 3: Test Selection -->
+                    <div class="wizard-content hidden" data-step="3">
+                        <h2>Select Tests</h2>
+                        <p class="step-description">Choose which tests to run and configure iteration mode.</p>
+
+                        <div class="test-config-section">
+                            <h3>Iteration Mode</h3>
+                            <div class="iteration-modes">
+                                <label class="radio-card">
+                                    <input type="radio" name="iteration-mode" value="quick" checked>
+                                    <span class="radio-label">Quick</span>
+                                    <span class="radio-desc">2 iterations - Fast results</span>
+                                </label>
+                                <label class="radio-card">
+                                    <input type="radio" name="iteration-mode" value="standard">
+                                    <span class="radio-label">Standard</span>
+                                    <span class="radio-desc">3 iterations - Balanced</span>
+                                </label>
+                                <label class="radio-card">
+                                    <input type="radio" name="iteration-mode" value="thorough">
+                                    <span class="radio-label">Thorough</span>
+                                    <span class="radio-desc">10 iterations - Detailed</span>
+                                </label>
+                                <label class="radio-card">
+                                    <input type="radio" name="iteration-mode" value="statistical">
+                                    <span class="radio-label">Statistical</span>
+                                    <span class="radio-desc">25 iterations - High precision</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="test-config-section">
+                            <h3>Test Categories</h3>
+                            <div class="category-filters">
+                                <label class="checkbox-pill">
+                                    <input type="checkbox" name="category" value="simple" checked>
+                                    <span>Simple</span>
+                                </label>
+                                <label class="checkbox-pill">
+                                    <input type="checkbox" name="category" value="medium" checked>
+                                    <span>Medium</span>
+                                </label>
+                                <label class="checkbox-pill">
+                                    <input type="checkbox" name="category" value="complex" checked>
+                                    <span>Complex</span>
+                                </label>
+                                <label class="checkbox-pill">
+                                    <input type="checkbox" name="category" value="load" checked>
+                                    <span>Load</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="test-config-section">
+                            <h3>Test Labels</h3>
+                            <div class="label-filters">
+                                <label class="checkbox-pill">
+                                    <input type="checkbox" name="label" value="latest" checked>
+                                    <span>Latest</span>
+                                </label>
+                                <label class="checkbox-pill">
+                                    <input type="checkbox" name="label" value="archival" checked>
+                                    <span>Archival</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="test-config-section">
+                            <h3>Individual Tests</h3>
+                            <div class="test-actions">
+                                <button type="button" class="btn btn-small" id="btn-select-all-tests">Select All</button>
+                                <button type="button" class="btn btn-small" id="btn-deselect-all-tests">Deselect All</button>
+                            </div>
+                            <div id="test-list" class="test-table">
+                                <!-- Populated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Test Parameters -->
+                    <div class="wizard-content hidden" data-step="4">
+                        <h2>Test Parameters</h2>
+                        <p class="step-description">Configure test parameters. Click "Randomize" to generate values from chain config.</p>
+
+                        <div class="params-actions">
+                            <button type="button" id="btn-randomize-params" class="btn btn-secondary">Randomize</button>
+                            <button type="button" id="btn-validate-params" class="btn btn-secondary">Validate</button>
+                        </div>
+
+                        <div id="params-form" class="params-grid">
+                            <div class="param-group">
+                                <label for="param-known-address">Known Address</label>
+                                <input type="text" id="param-known-address" placeholder="0x...">
+                                <span class="param-hint">Any address with non-zero balance (e.g. exchange wallet)</span>
+                            </div>
+                            <div class="param-group">
+                                <label for="param-archival-block">Archival Block</label>
+                                <input type="number" id="param-archival-block" placeholder="12000000">
+                                <span class="param-hint">Historical block for archival tests</span>
+                            </div>
+                            <div class="param-group">
+                                <label for="param-recent-block-offset">Recent Block Offset</label>
+                                <input type="number" id="param-recent-block-offset" value="100" placeholder="100">
+                                <span class="param-hint">Blocks behind head for "recent" queries</span>
+                            </div>
+                            <div class="param-group">
+                                <label for="param-logs-token-contract">Logs Token Contract</label>
+                                <input type="text" id="param-logs-token-contract" placeholder="0x...">
+                                <span class="param-hint">High-volume token for getLogs (e.g. WETH, USDC)</span>
+                            </div>
+                            <div class="param-group">
+                                <label for="param-logs-range-small">Logs Range (Small)</label>
+                                <input type="number" id="param-logs-range-small" value="1000" placeholder="1000">
+                                <span class="param-hint">Block range for 1k logs test</span>
+                            </div>
+                            <div class="param-group">
+                                <label for="param-logs-range-large">Logs Range (Large)</label>
+                                <input type="number" id="param-logs-range-large" value="10000" placeholder="10000">
+                                <span class="param-hint">Block range for 10k logs test</span>
+                            </div>
+                            <div class="param-group">
+                                <label for="param-timeout">Request Timeout (seconds)</label>
+                                <input type="number" id="param-timeout" value="30" min="5" max="600" placeholder="30">
+                                <span class="param-hint">Timeout per request (getLogs uses 5 min automatically)</span>
+                            </div>
+                        </div>
+
+                        <div id="params-validation-results" class="validation-results hidden"></div>
+                    </div>
+
+                    <!-- Step 5: Run Benchmark -->
+                    <div class="wizard-content hidden" data-step="5">
+                        <h2>Run Benchmark</h2>
+                        <div id="benchmark-summary" class="summary-card">
+                            <!-- Populated by JavaScript -->
+                        </div>
+
+                        <div id="benchmark-controls" class="benchmark-controls">
+                            <button type="button" id="btn-start-benchmark" class="btn btn-primary btn-large">Start Benchmark</button>
+                        </div>
+
+                        <div id="benchmark-progress" class="progress-section hidden">
+                            <div class="progress-header">
+                                <span id="progress-status">Running...</span>
+                                <button type="button" id="btn-cancel-benchmark" class="btn btn-danger btn-small">Cancel</button>
+                            </div>
+                            <div class="progress-bar-container">
+                                <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+                            </div>
+                            <div id="progress-details" class="progress-details">
+                                <!-- Live updates -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Wizard Navigation -->
+                    <div class="wizard-nav">
+                        <button type="button" id="btn-prev" class="btn btn-secondary" disabled>Previous</button>
+                        <button type="button" id="btn-next" class="btn btn-primary">Next</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Page -->
+            <section id="page-history" class="page hidden">
+                <h2>Benchmark History</h2>
+                <div class="history-filters">
+                    <select id="history-chain-filter">
+                        <option value="">All Chains</option>
+                    </select>
+                    <button type="button" id="btn-import-results" class="btn btn-secondary">Import Results</button>
+                    <input type="file" id="import-file-input" accept=".json" style="display: none;">
+                </div>
+                <div id="history-list" class="history-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Results Page (shown when viewing a job) -->
+            <section id="page-results" class="page hidden">
+                <div class="results-header">
+                    <h2>Benchmark Results</h2>
+                    <div class="results-actions">
+                        <button type="button" id="btn-export-json" class="btn btn-secondary">Export JSON</button>
+                        <button type="button" id="btn-export-csv" class="btn btn-secondary">Export CSV</button>
+                        <button type="button" id="btn-back-to-history" class="btn btn-secondary">Back to History</button>
+                    </div>
+                </div>
+
+                <div class="results-tabs">
+                    <button type="button" class="tab-btn active" data-tab="overview">Overview</button>
+                    <button type="button" class="tab-btn" data-tab="sequential">Sequential Tests</button>
+                    <button type="button" class="tab-btn" data-tab="load">Load Tests</button>
+                    <button type="button" class="tab-btn" data-tab="comparison">Comparison</button>
+                </div>
+
+                <div id="results-content" class="results-content">
+                    <!-- Tab content populated by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Chains Page -->
+            <section id="page-chains" class="page hidden">
+                <div class="chains-header">
+                    <h2>Chain Configurations</h2>
+                    <button type="button" id="btn-add-chain" class="btn btn-primary">+ Add Custom Chain</button>
+                </div>
+                <div id="chains-list" class="chains-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+
+                <!-- Chain Editor Modal -->
+                <div id="chain-modal" class="modal hidden">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="chain-modal-title">Add Custom Chain</h3>
+                            <button type="button" class="btn-icon modal-close">&times;</button>
+                        </div>
+                        <form id="chain-form" class="modal-body">
+                            <div class="form-group">
+                                <label for="chain-id">Chain ID</label>
+                                <input type="number" id="chain-id" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="chain-name">Chain Name</label>
+                                <input type="text" id="chain-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="chain-archival-start">Archival Block Range Start</label>
+                                <input type="number" id="chain-archival-start" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="chain-archival-end">Archival Block Range End</label>
+                                <input type="number" id="chain-archival-end" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Test Addresses</label>
+                                <div id="chain-addresses-container">
+                                    <!-- Dynamic address entries -->
+                                </div>
+                                <button type="button" class="btn btn-small" id="btn-add-address">+ Add Address</button>
+                            </div>
+                            <div class="form-group">
+                                <label>Token Contracts</label>
+                                <div id="chain-tokens-container">
+                                    <!-- Dynamic token entries -->
+                                </div>
+                                <button type="button" class="btn btn-small" id="btn-add-token">+ Add Token</button>
+                            </div>
+                        </form>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary modal-close">Cancel</button>
+                            <button type="button" id="btn-save-chain" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

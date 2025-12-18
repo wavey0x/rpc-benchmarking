@@ -1,0 +1,38 @@
+{
+  "chain_id": 42161,
+  "chain_name": "Arbitrum One",
+  "is_preset": true,
+  "archive_cutoff_block": 50000000,
+  "archival_block_range": [50000000, 150000000],
+  "test_addresses": [
+    {
+      "address": "0x489ee077994B6658eAfA855C308275EAd8097C4A",
+      "label": "Arbitrum Bridge"
+    },
+    {
+      "address": "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D",
+      "label": "Arbitrum Treasury"
+    }
+  ],
+  "token_contracts": [
+    {
+      "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+      "symbol": "USDC",
+      "holder_address": "0x489ee077994B6658eAfA855C308275EAd8097C4A"
+    },
+    {
+      "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+      "symbol": "USDT",
+      "holder_address": "0x489ee077994B6658eAfA855C308275EAd8097C4A"
+    },
+    {
+      "address": "0x912CE59144191C1204E64559FE8253a0e49E6548",
+      "symbol": "ARB",
+      "holder_address": "0xB38e8c17e38363aF6EbdCb3dAE12e0243582891D"
+    }
+  ],
+  "transaction_pool": [
+    "0x8c7d4b1f3c5e2a9d6b8f4e3c2a1d0e9f8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2",
+    "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+  ]
+}

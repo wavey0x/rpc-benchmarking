@@ -1,0 +1,43 @@
+{
+  "chain_id": 1,
+  "chain_name": "Ethereum Mainnet",
+  "is_preset": true,
+  "archive_cutoff_block": 12000000,
+  "archival_block_range": [12000000, 15000000],
+  "test_addresses": [
+    {
+      "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "label": "vitalik.eth"
+    },
+    {
+      "address": "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503",
+      "label": "Binance Hot Wallet"
+    },
+    {
+      "address": "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",
+      "label": "Binance Cold Wallet"
+    }
+  ],
+  "token_contracts": [
+    {
+      "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "symbol": "USDC",
+      "holder_address": "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503"
+    },
+    {
+      "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "symbol": "USDT",
+      "holder_address": "0x47ac0Fb4F2D84898e4D9E7b4DaB3C24507a6D503"
+    },
+    {
+      "address": "0x6B175474E89094C44Da98b954EescdeCB5BE3c3D",
+      "symbol": "DAI",
+      "holder_address": "0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf"
+    }
+  ],
+  "transaction_pool": [
+    "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060",
+    "0x9c81f44c29ff0226f835cd0a8a2f2a7eca6db52a711f8211b566fd15d3e0e8d4",
+    "0x2d4b3e27a83c5e8b16f5261c1f1d6c1a8efc4c55c1d9e7e4cf4a60e8b5b0a4a7"
+  ]
+}
