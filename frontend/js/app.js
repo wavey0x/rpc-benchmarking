@@ -6,6 +6,56 @@ import { api } from './api.js';
 import { formatMs, formatPercent, formatDate, formatDuration, truncateAddress, getCategoryColor } from './utils/formatting.js';
 
 // ============================================================================
+// Test Name Formatting
+// ============================================================================
+
+/**
+ * Parse getLogs test name to extract block range info.
+ * Returns null if not a getLogs test with block range.
+ */
+function parseGetLogsTestName(testName) {
+    // Match pattern: eth_getLogs [start→end] (label)
+    const match = testName.match(/^(eth_getLogs)\s*\[([0-9,]+)→([0-9,]+)\]\s*\((\w+)\)$/);
+
+    if (!match) return null;
+
+    const [, method, startStr, endStr, label] = match;
+    const startBlock = parseInt(startStr.replace(/,/g, ''));
+    const endBlock = parseInt(endStr.replace(/,/g, ''));
+    const blockCount = endBlock - startBlock;
+    const sizeLabel = blockCount <= 5000 ? 'SMALL' : 'LARGE';
+
+    return { method, startStr, endStr, label, startBlock, endBlock, blockCount, sizeLabel };
+}
+
+/**
+ * Format getLogs test names to show SMALL/LARGE labels with block count.
+ * Returns HTML with title attribute for hover showing actual block range.
+ *
+ * Input:  "eth_getLogs [12,000,000→12,050,000] (archival)"
+ * Output: <span title="Blocks: 12,000,000 → 12,050,000">eth_getLogs LARGE (50,000 blocks) (archival)</span>
+ */
+function formatTestName(testName) {
+    const parsed = parseGetLogsTestName(testName);
+    if (!parsed) return testName;
+
+    const displayText = `${parsed.method} ${parsed.sizeLabel} (${parsed.blockCount.toLocaleString()} blocks) (${parsed.label})`;
+    const hoverText = `Blocks: ${parsed.startStr} → ${parsed.endStr}`;
+
+    return `<span title="${hoverText}">${displayText}</span>`;
+}
+
+/**
+ * Format getLogs test name as plain text (for chart labels).
+ */
+function formatTestNamePlain(testName) {
+    const parsed = parseGetLogsTestName(testName);
+    if (!parsed) return testName;
+
+    return `${parsed.method} ${parsed.sizeLabel} (${parsed.blockCount.toLocaleString()}) (${parsed.label})`;
+}
+
+// ============================================================================
 // LocalStorage Keys
 // ============================================================================
 
@@ -1299,7 +1349,7 @@ function renderOverviewTab(results) {
                 <div class="test-filter-pills">
                     ${allTests.map(test => `
                         <button type="button" class="test-filter-pill ${hiddenChartTests.has(test) ? 'hidden-test' : ''}" data-test="${test}">
-                            ${test}
+                            ${formatTestName(test)}
                         </button>
                     `).join('')}
                 </div>
@@ -1331,7 +1381,7 @@ function renderOverviewTab(results) {
                     return `
                         <tr>
                             <td>${r.provider_name}</td>
-                            <td>${r.test_name}</td>
+                            <td>${formatTestName(r.test_name)}</td>
                             <td><span class="test-category ${r.category}">${r.category}</span></td>
                             <td class="numeric">${formatMs(r.cold_ms)}</td>
                             <td class="numeric">${formatMs(r.warm_ms)}</td>
@@ -1374,7 +1424,7 @@ function renderOverviewTab(results) {
         overviewChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: visibleTests,
+                labels: visibleTests.map(t => formatTestNamePlain(t)),
                 datasets: providers.map((provider, i) => ({
                     label: provider,
                     data: visibleTests.map(test => {
@@ -1461,7 +1511,7 @@ function renderSequentialTab(results) {
                 ${sequential.slice(0, 100).map(r => `
                     <tr>
                         <td>${r.provider_name || '-'}</td>
-                        <td>${r.test_name || '-'}</td>
+                        <td>${formatTestName(r.test_name || '-')}</td>
                         <td>${r.iteration_type || '-'}</td>
                         <td class="numeric">${formatMs(r.response_time_ms)}</td>
                         <td class="numeric">${r.log_count !== null && r.log_count !== undefined ? r.log_count.toLocaleString() : '-'}</td>
@@ -1499,7 +1549,7 @@ function renderLoadTab(results) {
                 ${loadTests.map(r => `
                     <tr>
                         <td>${r.provider_name || '-'}</td>
-                        <td>${r.test_name || '-'}</td>
+                        <td>${formatTestName(r.test_name || '-')}</td>
                         <td class="numeric">${r.concurrency || '-'}</td>
                         <td class="numeric">${r.requests_per_second?.toFixed(1) || '-'}</td>
                         <td class="numeric">${formatMs(r.p50_ms)}</td>
@@ -1611,7 +1661,7 @@ function renderComparisonTab(results) {
                             const counts = c.provider_counts || {};
                             return `
                                 <tr class="${c.has_mismatch ? 'mismatch-row' : ''}">
-                                    <td>${c.test_name}</td>
+                                    <td>${formatTestName(c.test_name)}</td>
                                     <td>${c.round_number}</td>
                                     ${logProviders.map(p => {
                                         const count = counts[p];
@@ -1644,7 +1694,7 @@ function renderComparisonTab(results) {
 
                     return `
                         <tr>
-                            <td>${test}</td>
+                            <td>${formatTestName(test)}</td>
                             ${providers.map(p => {
                                 const value = matrix[test][p];
                                 const isWinner = value === min && value !== null;
